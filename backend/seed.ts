@@ -107,6 +107,44 @@ export const seedDatabaseIfEmpty = async () => {
       console.log('✅ Firestore: Administrative citizens successfully seeded.');
     }
 
+    // Ensure our test user is present in Firestore
+    const testUserRef = db.collection('users').doc('test@oneearth.io');
+    const testUserDoc = await testUserRef.get();
+    if (!testUserDoc.exists) {
+      console.log('🌱 Firestore: Seeding test citizen...');
+      const testUser: IUser = {
+        id: "test@oneearth.io",
+        name: "Test Citizen",
+        username: "@test_citizen",
+        email: "test@oneearth.io",
+        dob: "1999-01-01",
+        territory: "United States",
+        flagEmoji: "🇺🇸",
+        gender: "Male",
+        currentRank: "Explorer",
+        knowledgeCredits: 120,
+        contributionCredits: 60,
+        reputationScore: 98,
+        personalityTraits: "Explorer,Builder,Creator",
+        bio: "Dedicated pioneer testing our One Earth connection hub.",
+        isCandidate: false,
+        campaignVision: "",
+        campaignManifesto: "",
+        votesCount: 0,
+        hasVoted: false,
+        onboardingCompleted: true,
+        citizenOathAccepted: true,
+        followers: 10,
+        following: 15,
+        profilePhoto: "",
+        passphrase: "password123",
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await testUserRef.set(testUser);
+      console.log('✅ Firestore: Test citizen created in Firestore.');
+    }
+
     // 2. Initialize Sequence Counters
     const countersSnapshot = await db.collection('counters').limit(1).get();
     if (countersSnapshot.empty) {

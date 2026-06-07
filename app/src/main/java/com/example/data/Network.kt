@@ -81,7 +81,7 @@ interface OneEarthApiService {
 // ==========================================
 
 object ApiClient {
-    private var currentUrl = "http://10.0.2.2:4000/" // Default for Android Emulator to access host's localhost:4000
+    private var currentUrl = "https://ais-dev-zjsjrkjxwuyityhxwiiiws-941119958138.asia-southeast1.run.app/" // Live cloud development backend
     private var retrofit: Retrofit? = null
     private var itemService: OneEarthApiService? = null
 

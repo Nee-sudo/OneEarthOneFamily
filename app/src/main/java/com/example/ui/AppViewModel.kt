@@ -417,8 +417,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     onResult(true)
                     return@launch
                 } catch (e: Exception) {
-                    if (e.message?.contains("401") == true || e.message?.contains("unauthorized") == true) {
-                        _toastMessage.emit("Authentication Error: Passphrase invalid or server denied access.")
+                    val errorMsg = when {
+                        e.message?.contains("401") == true -> "Passport authentication failed. Passphrase mismatch."
+                        e.message?.contains("404") == true -> "User identity does not exist in Empire registry."
+                        e.message?.contains("400") == true -> "Identifier or passphrase is invalid."
+                        else -> null
+                    }
+                    if (errorMsg != null) {
+                        _toastMessage.emit("Authentication Error: $errorMsg")
                         onResult(false)
                         return@launch
                     }
@@ -455,42 +461,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     onResult(false)
                 }
             } else {
-                // If user doesn't exist, we can register them dynamically or allow instant secure verification!
-                val cleanUsername = if (identifier.contains("@")) identifier.substringBefore("@") else identifier
-                val newMe = UserEntity(
-                    id = "me",
-                    name = cleanUsername.replaceFirstChar { it.uppercase() },
-                    username = if (cleanUsername.startsWith("@")) cleanUsername else "@$cleanUsername",
-                    email = if (identifier.contains("@")) identifier else "$identifier@oneearth.io",
-                    dob = "1995-10-10",
-                    territory = "Global",
-                    flagEmoji = "🌍",
-                    personalityTraits = "Citizen,Expert,Leader,Visionary,Creator",
-                    onboardingCompleted = true,
-                    citizenOathAccepted = true,
-                    knowledgeCredits = 75,
-                    contributionCredits = 40,
-                    reputationScore = 98,
-                    passphrase = passphraseInput
-                )
-                
-                // Also save under their username + email persistently for the future
-                saveUserAndRecalculateRank(newMe)
-                userDao.insertUser(newMe.copy(id = newMe.email.lowercase()))
-                userDao.insertUser(newMe.copy(id = "user_${newMe.username.lowercase().removePrefix("@")}"))
-                
-                // Hit backend to register!
-                if (_isBackendConnected.value) {
-                    try {
-                        ApiClient.getService().registerUser(newMe)
-                    } catch (e: Exception) {
-                        // silently fail on backend registration fallback
-                    }
-                }
-
-                _toastMessage.emit("Welcome to the Empire, ${newMe.name}! Identity registered.")
-                _currentScreen.value = Screen.MainDashboard
-                onResult(true)
+                _toastMessage.emit("Authentication Error: User identity not registered. Please register first.")
+                onResult(false)
             }
         }
     }
@@ -1113,6 +1085,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     campaignVision = "Grassroots Infrastructure Mobilization",
                     campaignManifesto = "Action outweighs debate. I will introduce regional solar and clean water blueprints as active Imperial missions for collective credit.",
                     votesCount = 8
+                ),
+                UserEntity(
+                    id = "test@oneearth.io",
+                    name = "Test Citizen",
+                    username = "@test_citizen",
+                    email = "test@oneearth.io",
+                    dob = "1999-01-01",
+                    territory = "United States",
+                    flagEmoji = "🇺🇸",
+                    gender = "Male",
+                    currentRank = "Explorer",
+                    knowledgeCredits = 120,
+                    contributionCredits = 60,
+                    reputationScore = 98,
+                    personalityTraits = "Explorer,Builder,Creator",
+                    bio = "Dedicated pioneer testing our One Earth connection hub.",
+                    isCandidate = false,
+                    campaignVision = "",
+                    campaignManifesto = "",
+                    votesCount = 0,
+                    hasVoted = false,
+                    onboardingCompleted = true,
+                    citizenOathAccepted = true,
+                    followers = 10,
+                    following = 15,
+                    profilePhoto = "",
+                    passphrase = "password123"
+                ),
+                UserEntity(
+                    id = "user_test_citizen",
+                    name = "Test Citizen",
+                    username = "@test_citizen",
+                    email = "test@oneearth.io",
+                    dob = "1999-01-01",
+                    territory = "United States",
+                    flagEmoji = "🇺🇸",
+                    gender = "Male",
+                    currentRank = "Explorer",
+                    knowledgeCredits = 120,
+                    contributionCredits = 60,
+                    reputationScore = 98,
+                    personalityTraits = "Explorer,Builder,Creator",
+                    bio = "Dedicated pioneer testing our One Earth connection hub.",
+                    isCandidate = false,
+                    campaignVision = "",
+                    campaignManifesto = "",
+                    votesCount = 0,
+                    hasVoted = false,
+                    onboardingCompleted = true,
+                    citizenOathAccepted = true,
+                    followers = 10,
+                    following = 15,
+                    profilePhoto = "",
+                    passphrase = "password123"
                 )
             )
             for (u in users) {
