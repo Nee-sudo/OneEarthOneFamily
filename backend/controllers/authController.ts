@@ -211,3 +211,18 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const db = getFirestoreDb();
+    const snapshot = await db.collection('users').get();
+    const usersList: any[] = [];
+    snapshot.forEach(doc => {
+      usersList.push(doc.data());
+    });
+    res.status(200).json(usersList);
+  } catch (error: any) {
+    console.error("Firestore List Users Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

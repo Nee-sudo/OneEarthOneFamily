@@ -36,6 +36,9 @@ interface OneEarthApiService {
     suspend fun loginUser(@Body request: LoginRequest): UserEntity
 
     // Profile Endpoints
+    @GET("api/users")
+    suspend fun getAllUsers(): List<UserEntity>
+
     @GET("api/users/{userId}")
     suspend fun getUserProfile(@Path("userId") userId: String): UserEntity
 

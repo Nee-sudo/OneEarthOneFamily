@@ -150,13 +150,65 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _isBackendConnected = MutableStateFlow(false)
     val isBackendConnected: StateFlow<Boolean> = _isBackendConnected.asStateFlow()
 
+    private val _isConnectingToBackend = MutableStateFlow(false)
+    val isConnectingToBackend: StateFlow<Boolean> = _isConnectingToBackend.asStateFlow()
+
     private val _backendBaseUrl = MutableStateFlow(ApiClient.getBaseUrl())
     val backendBaseUrl: StateFlow<String> = _backendBaseUrl.asStateFlow()
 
-    fun updateBackendUrl(newUrl: String) {
-        ApiClient.updateBaseUrl(newUrl)
+    private val _showSyncSettingsDialog = MutableStateFlow(false)
+    val showSyncSettingsDialog: StateFlow<Boolean> = _showSyncSettingsDialog.asStateFlow()
+
+    fun setShowSyncSettingsDialog(show: Boolean) {
+        _showSyncSettingsDialog.value = show
+    }
+
+    fun updateBackendUrl(newUrl: String, onSuccess: () -> Unit = {}) {
+        var cleanUrl = newUrl.trim()
+        if (cleanUrl.isNotBlank()) {
+            // Autocomplete scheme if missing (e.g. standard user typing raw hostnames)
+            if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+                val isLocal = cleanUrl.contains("192.168.") || 
+                              cleanUrl.contains("10.") || 
+                              cleanUrl.contains("172.") || 
+                              cleanUrl.contains("localhost") || 
+                              cleanUrl.contains("127.0.0.1") ||
+                              cleanUrl.contains(":") // contains a port specification like ':4000'
+                if (isLocal) {
+                    cleanUrl = "http://$cleanUrl"
+                } else {
+                    cleanUrl = "https://$cleanUrl"
+                }
+            }
+        }
+        ApiClient.updateBaseUrl(cleanUrl)
         _backendBaseUrl.value = ApiClient.getBaseUrl()
-        checkConnectionOnce()
+        viewModelScope.launch {
+            _isConnectingToBackend.value = true
+            _toastMessage.emit("Connecting to Cosmos Network at: ${ApiClient.getBaseUrl()}...")
+            try {
+                val response = ApiClient.getService().checkHealth()
+                val success = (response.status == "ok" || response.status.isNotBlank())
+                _isBackendConnected.value = success
+                if (success) {
+                    _toastMessage.emit("Successfully connected to Cosmos Network!")
+                    syncAllWithBackend()
+                    onSuccess()
+                } else {
+                    _toastMessage.emit("Connection failed: Server responded with status '${response.status}'")
+                }
+            } catch (e: Exception) {
+                _isBackendConnected.value = false
+                val msg = e.localizedMessage ?: "Unknown network failure"
+                if (msg.contains("JsonReader") || msg.contains("lenient") || msg.contains("malformed", ignoreCase = true) || msg.contains("Unexpected char", ignoreCase = true)) {
+                    _toastMessage.emit("Sync Warning: The server returned HTML/Text instead of JSON. This usually indicates a preview cookie-prompt, a reverse proxy redirect, or an incorrect API url. Please verify your custom backend is active at: ${ApiClient.getBaseUrl()}")
+                } else {
+                    _toastMessage.emit("Connection failed: $msg")
+                }
+            } finally {
+                _isConnectingToBackend.value = false
+            }
+        }
     }
 
     // Setup Form States
@@ -233,6 +285,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     if (!wasConnected && _isBackendConnected.value) {
                         _toastMessage.emit("Connected to One Earth Network Backend!")
                         syncAllWithBackend()
+                    } else if (_isBackendConnected.value) {
+                        // Periodic background sync of users, posts, and chats
+                        syncAllWithBackend()
                     }
                 } catch (e: Exception) {
                     _isBackendConnected.value = false
@@ -246,6 +301,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (!_isBackendConnected.value) return@launch
             try {
+                // 0. Ensure current logged-in local user is registered and updated on the server
+                val me = userDao.getUserById("me")
+                if (me != null && me.email.isNotBlank()) {
+                    try {
+                        ApiClient.getService().registerUser(me)
+                    } catch (e: Exception) {
+                        try {
+                            ApiClient.getService().updateUserProfile(me.email.lowercase().trim(), me)
+                        } catch (updateEx: Exception) {
+                            // Safe fallback
+                        }
+                    }
+                }
+
                 // 1. Sync Posts from Backend
                 val remotePosts = ApiClient.getService().getPosts()
                 if (remotePosts.isNotEmpty()) {
@@ -259,6 +328,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (remoteRooms.isNotEmpty()) {
                     remoteRooms.forEach { room ->
                         chatDao.insertRoom(room)
+                    }
+                }
+
+                // 3. Sync All Users from Cloud to Local Friends List
+                val remoteUsers = ApiClient.getService().getAllUsers()
+                if (remoteUsers.isNotEmpty()) {
+                    remoteUsers.forEach { user ->
+                        // Skip local logged-in user profile to prevent self duplicates
+                        val matchesMe = me != null && (
+                            user.email.lowercase().trim() == me.email.lowercase().trim() ||
+                            user.username.lowercase().trim() == me.username.lowercase().trim()
+                        )
+                        if (!matchesMe && user.email.isNotBlank()) {
+                            // Map the received user entity into sqlite with their email as secondary key ID
+                            val friendEntity = user.copy(
+                                id = user.email.lowercase().trim()
+                            )
+                            userDao.insertUser(friendEntity)
+                        }
                     }
                 }
             } catch (e: Exception) {

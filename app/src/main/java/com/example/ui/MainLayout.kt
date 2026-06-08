@@ -58,6 +58,7 @@ fun MainLayout(viewModel: AppViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val showSyncDialog by viewModel.showSyncSettingsDialog.collectAsState()
 
     // Collect Toast/Notification events from ViewModel
     LaunchedEffect(key1 = true) {
@@ -89,6 +90,35 @@ fun MainLayout(viewModel: AppViewModel) {
             Screen.PersonalitySetup -> PersonalitySetupView(viewModel)
             Screen.CitizenOath -> CitizenOathView(viewModel)
             Screen.MainDashboard -> MainDashboardView(viewModel, snackbarHostState)
+        }
+
+        // Floating Connection Sync Status / Settings icon for onboarding & log-in screens
+        if (currentScreen != Screen.MainDashboard) {
+            Row(
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val isConnected by viewModel.isBackendConnected.collectAsState()
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(if (isConnected) EmeraldSuccess else CrimsonRep, CircleShape)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    onClick = { viewModel.setShowSyncSettingsDialog(true) }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Sync Config",
+                        tint = RegalGold,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         }
 
         // Floating Toast Notification
@@ -126,6 +156,10 @@ fun MainLayout(viewModel: AppViewModel) {
                 }
             }
         )
+    }
+
+    if (showSyncDialog) {
+        SyncSettingsDialogView(viewModel)
     }
 }
 
@@ -1463,8 +1497,8 @@ fun MainDashboardView(viewModel: AppViewModel, snackbarHostState: SnackbarHostSt
     val showWelcome by viewModel.showDailyWelcome.collectAsState()
     val showExit by viewModel.showExitSummary.collectAsState()
 
-    var showSyncSettingsDialog by remember { mutableStateOf(false) }
     val isBackendConnected by viewModel.isBackendConnected.collectAsState()
+    val isConnectingToBackend by viewModel.isConnectingToBackend.collectAsState()
     val backendBaseUrl by viewModel.backendBaseUrl.collectAsState()
 
     Scaffold(
@@ -1658,7 +1692,7 @@ fun MainDashboardView(viewModel: AppViewModel, snackbarHostState: SnackbarHostSt
                                     },
                                     onClick = {
                                         showMenu = false
-                                        showSyncSettingsDialog = true
+                                        viewModel.setShowSyncSettingsDialog(true)
                                     }
                                 )
                                 DropdownMenuItem(
@@ -1820,122 +1854,6 @@ fun MainDashboardView(viewModel: AppViewModel, snackbarHostState: SnackbarHostSt
                         colors = ButtonDefaults.buttonColors(containerColor = RegalGold)
                     ) {
                         Text("Honor", color = CharcoalObsidian, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-
-    // Modal: The Sync Settings
-    if (showSyncSettingsDialog) {
-        var urlInput by remember { mutableStateOf(backendBaseUrl) }
-        Dialog(
-            onDismissRequest = { showSyncSettingsDialog = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = VelvetCard),
-                border = BorderStroke(1.5.dp, RegalGold),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .widthIn(max = 450.dp)
-                    .fillMaxWidth(0.9f)
-                    .wrapContentHeight()
-                    .imePadding()
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    Text(
-                        text = "Cosmos Network Sync",
-                        color = GhostWhite,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(12.dp)
-                                .background(
-                                    if (isBackendConnected) EmeraldSuccess else CrimsonRep,
-                                    CircleShape
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isBackendConnected) "Connected Online" else "Offline / Disconnected",
-                            color = if (isBackendConnected) EmeraldSuccess else CrimsonRep,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    OutlinedTextField(
-                        value = urlInput,
-                        onValueChange = { urlInput = it },
-                        label = { Text("Server Base URL", color = RegalGold) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = GhostWhite,
-                            unfocusedTextColor = GhostWhite,
-                            focusedBorderColor = RegalGold,
-                            unfocusedBorderColor = RegalGold.copy(alpha = 0.5f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Text("Standard emulator hosts:", color = MutedSlate, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { urlInput = "http://10.0.2.2:4000/" },
-                            colors = ButtonDefaults.buttonColors(containerColor = RegalGold.copy(alpha = 0.2f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("10.0.2.2", fontSize = 11.sp, color = RegalGold)
-                        }
-                        Button(
-                            onClick = { urlInput = "http://localhost:4000/" },
-                            colors = ButtonDefaults.buttonColors(containerColor = RegalGold.copy(alpha = 0.2f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("localhost", fontSize = 11.sp, color = RegalGold)
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(20.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { 
-                                viewModel.updateBackendUrl(urlInput)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = RegalGold),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Connect", color = CharcoalObsidian, fontWeight = FontWeight.Bold)
-                        }
-                        
-                        Button(
-                            onClick = { showSyncSettingsDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = CharcoalObsidian),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Close", color = GhostWhite)
-                        }
                     }
                 }
             }
@@ -5509,5 +5427,151 @@ fun getAutoSuggestedRole(user: UserEntity): String {
         user.knowledgeCredits > user.contributionCredits -> "Grand Knowledge Archivist"
         user.contributionCredits >= user.knowledgeCredits -> "Supreme Social Director"
         else -> "Civic Envoy"
+    }
+}
+
+@Composable
+fun SyncSettingsDialogView(viewModel: AppViewModel) {
+    val showSyncDialog by viewModel.showSyncSettingsDialog.collectAsState()
+    if (!showSyncDialog) return
+
+    val isBackendConnected by viewModel.isBackendConnected.collectAsState()
+    val isConnectingToBackend by viewModel.isConnectingToBackend.collectAsState()
+    val backendBaseUrl by viewModel.backendBaseUrl.collectAsState()
+    var urlInput by remember { mutableStateOf(backendBaseUrl) }
+
+    Dialog(
+        onDismissRequest = { viewModel.setShowSyncSettingsDialog(false) },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = VelvetCard),
+            border = BorderStroke(1.5.dp, RegalGold),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .widthIn(max = 450.dp)
+                .fillMaxWidth(0.9f)
+                .wrapContentHeight()
+                .imePadding()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Cosmos Network Sync",
+                    color = GhostWhite,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(
+                                if (isBackendConnected) EmeraldSuccess else CrimsonRep,
+                                CircleShape
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isBackendConnected) "Connected Online" else "Offline / Disconnected",
+                        color = if (isBackendConnected) EmeraldSuccess else CrimsonRep,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedTextField(
+                    value = urlInput,
+                    onValueChange = { urlInput = it },
+                    label = { Text("Server Base URL", color = RegalGold) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = GhostWhite,
+                        unfocusedTextColor = GhostWhite,
+                        focusedBorderColor = RegalGold,
+                        unfocusedBorderColor = RegalGold.copy(alpha = 0.5f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text("Connecting to Local VS Code Backend?", color = RegalGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Since this app preview runs on a secure Cloud VM inside Google AI Studio, it cannot directly reach 'localhost' or '10.0.2.2' of your home computer.\n\nTo connect to your VS Code local server, use a free tunneling tool (like ngrok or pinggy) on your PC:\n• Run: 'ngrok http 4000'\n• Copy the public https://... URL it provides\n• Paste that URL in the field above!",
+                    color = MutedSlate,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Text("Local Emulators (if running APK locally):", color = MutedSlate, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { urlInput = "http://10.0.2.2:4000/" },
+                        colors = ButtonDefaults.buttonColors(containerColor = RegalGold.copy(alpha = 0.2f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("10.0.2.2", fontSize = 11.sp, color = RegalGold)
+                    }
+                    Button(
+                        onClick = { urlInput = "http://localhost:4000/" },
+                        colors = ButtonDefaults.buttonColors(containerColor = RegalGold.copy(alpha = 0.2f)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("localhost", fontSize = 11.sp, color = RegalGold)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { 
+                            viewModel.updateBackendUrl(urlInput) {
+                                viewModel.setShowSyncSettingsDialog(false)
+                            }
+                        },
+                        enabled = !isConnectingToBackend,
+                        colors = ButtonDefaults.buttonColors(containerColor = RegalGold),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isConnectingToBackend) {
+                            CircularProgressIndicator(
+                                color = CharcoalObsidian,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Syncing...", color = CharcoalObsidian, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("Connect", color = CharcoalObsidian, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    Button(
+                        onClick = { viewModel.setShowSyncSettingsDialog(false) },
+                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalObsidian),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close", color = GhostWhite)
+                    }
+                }
+            }
+        }
     }
 }
