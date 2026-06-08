@@ -509,6 +509,9 @@ fun RegistrationView(viewModel: AppViewModel) {
     var dob by remember { mutableStateOf("") }
     var selectedGender by remember { mutableStateOf("Male") }
     var selectedFlag by remember { mutableStateOf("🇮🇳") }
+    var showAllFlagsDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedRegionFilter by remember { mutableStateOf("All") }
 
     val isEmailValid = remember(email) {
         email.isEmpty() || email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$"))
@@ -734,15 +737,14 @@ fun RegistrationView(viewModel: AppViewModel) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             val flags = listOf(
                 Pair("🇮🇳", "India"),
                 Pair("🇫🇷", "France"),
                 Pair("🇰🇪", "Kenya"),
                 Pair("🇧🇷", "Brazil"),
-                Pair("🇯🇵", "Japan"),
-                Pair("🇺🇸", "US")
+                Pair("🇯🇵", "Japan")
             )
             flags.forEach { pair ->
                 val isSelected = selectedFlag == pair.first
@@ -770,6 +772,168 @@ fun RegistrationView(viewModel: AppViewModel) {
                     }
                 }
             }
+
+            // More Countries / Custome trigger
+            val hasCustomSelect = flags.none { it.first == selectedFlag }
+            val labelText = if (hasCustomSelect) {
+                TerritoryDatabase.list.find { it.flag == selectedFlag }?.name?.take(8) ?: "Selected"
+            } else "More"
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (hasCustomSelect) RegalGold.copy(alpha = 0.15f) else CharcoalObsidian
+                ),
+                border = BorderStroke(
+                    width = 1.5.dp,
+                    color = if (hasCustomSelect) RegalGold else RegalGold.copy(alpha = 0.4f)
+                ),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .weight(1.1f)
+                    .height(52.dp)
+                    .clickable { showAllFlagsDialog = true }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(if (hasCustomSelect) selectedFlag else "🌍", fontSize = 20.sp)
+                    Text(labelText, color = RegalGold, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
+
+        if (showAllFlagsDialog) {
+            Dialog(onDismissRequest = { showAllFlagsDialog = false }) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = VelvetCard),
+                    border = BorderStroke(1.5.dp, RegalGold),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Select Global Territory",
+                            color = GhostWhite,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        
+                        // Region pills row
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val regions = listOf("All", "Africa", "Asia", "Europe", "North America", "South America", "Oceania")
+                            regions.forEach { region ->
+                                val isSel = selectedRegionFilter == region
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSel) RegalGold else CharcoalObsidian
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.clickable { selectedRegionFilter = region }
+                                ) {
+                                    Text(
+                                        text = region,
+                                        color = if (isSel) CharcoalObsidian else GhostWhite,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Search text field
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search territory...", color = MutedSlate) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = GhostWhite,
+                                unfocusedTextColor = GhostWhite,
+                                focusedBorderColor = RegalGold,
+                                unfocusedBorderColor = MutedSlate.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        )
+                        
+                        // List of matching territories
+                        val filtered = TerritoryDatabase.list.filter {
+                            (selectedRegionFilter == "All" || it.region.equals(selectedRegionFilter, ignoreCase = true)) &&
+                            (it.name.contains(searchQuery, ignoreCase = true) || it.capital.contains(searchQuery, ignoreCase = true))
+                        }
+                        
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filtered) { item ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (selectedFlag == item.flag) RegalGold.copy(alpha = 0.15f) else CharcoalObsidian
+                                    ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (selectedFlag == item.flag) RegalGold else MutedSlate.copy(alpha = 0.2f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedFlag = item.flag
+                                            showAllFlagsDialog = false
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(item.flag, fontSize = 28.sp)
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text(item.name, color = GhostWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                            Text("Capital: ${item.capital}  •  Pop: ${item.population}", color = MutedSlate, fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            if (filtered.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("No territories found.", color = MutedSlate, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { showAllFlagsDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = CharcoalObsidian),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Dismiss", color = GhostWhite)
+                        }
+                    }
+                }
+            }
         }
 
         // Activation Button (One Word)
@@ -785,15 +949,8 @@ fun RegistrationView(viewModel: AppViewModel) {
                 viewModel.tempPassword = password
                 viewModel.tempGender = selectedGender
                 viewModel.selectedFlag = selectedFlag
-                viewModel.selectedTerritory = when (selectedFlag) {
-                    "🇮🇳" -> "India"
-                    "🇫🇷" -> "France"
-                    "🇰🇪" -> "Kenya"
-                    "🇧🇷" -> "Brazil"
-                    "🇯🇵" -> "Japan"
-                    "🇺🇸" -> "United States"
-                    else -> "India"
-                }
+                val matchedCountry = TerritoryDatabase.list.find { it.flag == selectedFlag }
+                viewModel.selectedTerritory = matchedCountry?.name ?: "India"
                 showOtpDialog = true
             },
             colors = ButtonDefaults.buttonColors(containerColor = RegalGold),
@@ -1076,24 +1233,19 @@ fun LoginView(viewModel: AppViewModel) {
 // ============================================================================
 @Composable
 fun TerritorySelectionView(viewModel: AppViewModel) {
-    val territories = listOf(
-        TerritoryItem("Territory of India", "🇮🇳", "Asia-Pacific", "1.4 Billion", VelvetCard),
-        TerritoryItem("Territory of France", "🇫🇷", "Europe", "67 Million", VelvetCard),
-        TerritoryItem("Territory of Kenya", "🇰🇪", "East Africa", "53 Million", VelvetCard),
-        TerritoryItem("Territory of Brazil", "🇧🇷", "South America", "214 Million", VelvetCard),
-        TerritoryItem("Territory of Japan", "🇯🇵", "East Asia", "125 Million", VelvetCard),
-        TerritoryItem("Territory of United States", "🇺🇸", "North America", "330 Million", VelvetCard)
-    )
+    val territories = TerritoryDatabase.list
 
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedTerritoryName by remember { mutableStateOf<String?>(viewModel.selectedTerritory.ifEmpty { null }) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedRegion by remember { mutableStateOf("All") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Icon(
             imageVector = Icons.Default.Public,
@@ -1102,7 +1254,7 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
             modifier = Modifier.size(54.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = "Geopolitical Alignment",
@@ -1112,30 +1264,80 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
         )
 
         Text(
-            text = "Select your home territory. In One Earth, all territories are equal and united under one Empire.",
+            text = "Select your home territory. All territories are equal and united under one Earth.",
             color = MutedSlate,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
         )
+
+        // Region pills row
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val regions = listOf("All", "Africa", "Asia", "Europe", "North America", "South America", "Oceania")
+            regions.forEach { region ->
+                val isSel = selectedRegion == region
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSel) RegalGold else CharcoalObsidian
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.clickable { selectedRegion = region }
+                ) {
+                    Text(
+                        text = region,
+                        color = if (isSel) CharcoalObsidian else GhostWhite,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Search text field
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search 115+ global territories...", color = MutedSlate, fontSize = 12.sp) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = GhostWhite,
+                unfocusedTextColor = GhostWhite,
+                focusedBorderColor = RegalGold,
+                unfocusedBorderColor = MutedSlate.copy(alpha = 0.5f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        )
+
+        val displayedTerritories = territories.filter {
+            (selectedRegion == "All" || it.region.equals(selectedRegion, ignoreCase = true)) &&
+            (it.name.contains(searchQuery, ignoreCase = true) || it.capital.contains(searchQuery, ignoreCase = true))
+        }
 
         // Territory Option Grid
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(territories.size) { index ->
-                val territory = territories[index]
-                val isSelected = selectedIndex == index
+            items(displayedTerritories.size) { index ->
+                val territory = displayedTerritories[index]
+                val isSelected = selectedTerritoryName == territory.name
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
+                        .height(130.dp)
                         .clickable {
-                            selectedIndex = index
-                            viewModel.selectedTerritory = territory.name.replace("Territory of ", "")
+                            selectedTerritoryName = territory.name
+                            viewModel.selectedTerritory = territory.name
                             viewModel.selectedFlag = territory.flag
                         },
                     colors = CardDefaults.cardColors(
@@ -1150,7 +1352,7 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp),
+                            .padding(12.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
@@ -1160,14 +1362,14 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
                         ) {
                             Text(
                                 text = territory.flag,
-                                fontSize = 36.sp
+                                fontSize = 32.sp
                             )
                             if (isSelected) {
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = "Selected",
                                     tint = RegalGold,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -1176,14 +1378,16 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
                             Text(
                                 text = territory.name,
                                 color = GhostWhite,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Pop: ${territory.population}",
                                 color = MutedSlate,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(top = 2.dp)
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(top = 1.dp)
                             )
                         }
                     }
@@ -1191,11 +1395,11 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             onClick = {
-                if (selectedIndex != null) {
+                if (selectedTerritoryName != null) {
                     viewModel.navigateTo(Screen.PersonalitySetup)
                 }
             },
@@ -1203,14 +1407,16 @@ fun TerritorySelectionView(viewModel: AppViewModel) {
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            enabled = selectedIndex != null
+                .height(50.dp),
+            enabled = selectedTerritoryName != null
         ) {
             Text(
-                "Select",
+                "Align with ${selectedTerritoryName ?: "Territory"}",
                 color = CharcoalObsidian,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+                letterSpacing = 1.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -5178,16 +5384,22 @@ fun MissionsTab(viewModel: AppViewModel) {
             Tab(
                 selected = subTab == 0,
                 onClick = { viewModel.selectMissionsSubTab(0) },
-                text = { Text("Missions", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                text = { Text("Missions", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1) }
             )
             Tab(
                 selected = subTab == 1,
                 onClick = { viewModel.selectMissionsSubTab(1) },
-                text = { Text("Knowledge Arena", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                text = { Text("Arena Exam", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1) }
+            )
+            Tab(
+                selected = subTab == 2,
+                onClick = { viewModel.selectMissionsSubTab(2) },
+                text = { Text("Flags Codex", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1) }
             )
         }
 
-        if (subTab == 0) {
+        when (subTab) {
+            0 -> {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 80.dp)
@@ -5391,8 +5603,13 @@ fun MissionsTab(viewModel: AppViewModel) {
                     }
                 }
             }
-        } else {
-            KnowledgeArenaTab(viewModel)
+            }
+            1 -> {
+                KnowledgeArenaTab(viewModel)
+            }
+            2 -> {
+                TerritoryFlagsExplorerTab(viewModel)
+            }
         }
     }
 }
@@ -5569,6 +5786,521 @@ fun SyncSettingsDialogView(viewModel: AppViewModel) {
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Close", color = GhostWhite)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// TAB 3: TERRITORY FLAGS CODEX & ACADEMY TRIVIA QUIZ
+// ============================================================================
+@Composable
+fun TerritoryFlagsExplorerTab(viewModel: AppViewModel) {
+    var selectedTabMode by remember { mutableStateOf(0) } // 0: Codex, 1: Quiz
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Mode Selector Pills
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CharcoalObsidian.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, RegalGold.copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { selectedTabMode = 0 },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedTabMode == 0) RegalGold else Color.Transparent
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Flags Codex",
+                        color = if (selectedTabMode == 0) CharcoalObsidian else RegalGold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+                Button(
+                    onClick = { selectedTabMode = 1 },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedTabMode == 1) RegalGold else Color.Transparent
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Guardian Quiz",
+                        color = if (selectedTabMode == 1) CharcoalObsidian else RegalGold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        if (selectedTabMode == 0) {
+            // Codex Mode
+            var searchQuery by remember { mutableStateOf("") }
+            var selectedRegionFilter by remember { mutableStateOf("All") }
+            var selectedTerritoryForDetail by remember { mutableStateOf<TerritoryDetails?>(null) }
+            
+            // Region Pills Row
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val regions = listOf("All", "Africa", "Asia", "Europe", "North America", "South America", "Oceania")
+                regions.forEach { region ->
+                    val isSel = selectedRegionFilter == region
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSel) RegalGold else CharcoalObsidian
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.clickable { selectedRegionFilter = region }
+                    ) {
+                        Text(
+                            text = region,
+                            color = if (isSel) CharcoalObsidian else GhostWhite,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            // Search text field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search 115+ territories & capitals...", color = MutedSlate, fontSize = 12.sp) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = GhostWhite,
+                    unfocusedTextColor = GhostWhite,
+                    focusedBorderColor = RegalGold,
+                    unfocusedBorderColor = MutedSlate.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+
+            val filtered = TerritoryDatabase.list.filter {
+                (selectedRegionFilter == "All" || it.region.equals(selectedRegionFilter, ignoreCase = true)) &&
+                (it.name.contains(searchQuery, ignoreCase = true) || it.capital.contains(searchQuery, ignoreCase = true))
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filtered.size) { idx ->
+                    val item = filtered[idx]
+                    val isSelectedDetail = selectedTerritoryForDetail?.code == item.code
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelectedDetail) RegalGold.copy(alpha = 0.15f) else VelvetCard
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelectedDetail) RegalGold else MutedSlate.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .clickable {
+                                selectedTerritoryForDetail = if (isSelectedDetail) null else item
+                            }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(item.flag, fontSize = 28.sp)
+                            Text(
+                                item.name,
+                                color = GhostWhite,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                if (filtered.isEmpty()) {
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                        Box(modifier = Modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text("No matching territories found.", color = MutedSlate, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
+            // Info Detail Sheet below
+            AnimatedVisibility(
+                visible = selectedTerritoryForDetail != null,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                selectedTerritoryForDetail?.let { item ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = VelvetCard),
+                        border = BorderStroke(1.5.dp, RegalGold),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 80.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item.flag, fontSize = 36.sp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(item.name, color = GhostWhite, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                        Text("${item.region} Sovereign Domain", color = MutedSlate, fontSize = 11.sp)
+                                    }
+                                }
+                                IconButton(onClick = { selectedTerritoryForDetail = null }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Close Detail",
+                                        tint = MutedSlate,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Specs Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("CAPITAL", color = RegalGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(item.capital, color = GhostWhite, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Column {
+                                    Text("POPULATION", color = RegalGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(item.population, color = GhostWhite, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Column {
+                                    Text("INDEX CODE", color = RegalGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(item.code, color = GhostWhite, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Divider(color = MutedSlate.copy(alpha = 0.2f), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text("FLAG SYMBOLISM", color = RegalGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                item.fact,
+                                color = GhostWhite.copy(alpha = 0.9f),
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Button(
+                                onClick = {
+                                    viewModel.alignWithTerritory(item.name, item.flag)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RegalGold),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Public, contentDescription = null, tint = CharcoalObsidian, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Declare Geopolitical Alignment", color = CharcoalObsidian, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Trivia Quiz Mode
+            var currentTarget by remember { mutableStateOf<TerritoryDetails?>(null) }
+            var choices by remember { mutableStateOf<List<TerritoryDetails>>(emptyList()) }
+            var optionSelected by remember { mutableStateOf<Int?>(null) }
+            var isAnswered by remember { mutableStateOf(false) }
+            var isCorrectAnswer by remember { mutableStateOf(false) }
+            var quizStreak by remember { mutableStateOf(0) }
+            var bestStreak by remember { mutableStateOf(0) }
+            var kcEarnedTotal by remember { mutableStateOf(0) }
+
+            // Helper function to generate question
+            val generateQuestion = {
+                val db = TerritoryDatabase.list
+                val target = db.random()
+                currentTarget = target
+                
+                val decoys = db.filter { it.code != target.code }.shuffled().take(3)
+                choices = (decoys + target).shuffled()
+                optionSelected = null
+                isAnswered = false
+                isCorrectAnswer = false
+            }
+
+            if (currentTarget == null) {
+                generateQuestion()
+            }
+
+            currentTarget?.let { target ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = ElectricBlue.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "Streak: $quizStreak  •  Best: $bestStreak",
+                                color = ElectricBlue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = RegalGold.copy(alpha = 0.15f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "KC Awarded: +$kcEarnedTotal",
+                                color = RegalGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = VelvetCard),
+                        border = BorderStroke(1.5.dp, RegalGold),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 80.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Academy Flag Challenge",
+                                color = RegalGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Box(
+                                modifier = Modifier
+                                    .size(110.dp)
+                                    .background(CharcoalObsidian, RoundedCornerShape(16.dp))
+                                    .border(1.dp, MutedSlate.copy(alpha = 0.2f), RoundedCornerShape(16.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(target.flag, fontSize = 64.sp)
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Text(
+                                "Which sovereign territory on Earth flies this custom flag?",
+                                color = GhostWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(20.dp))
+                            
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                choices.forEachIndexed { index, option ->
+                                    val isCurrentOptSelected = optionSelected == index
+                                    val borderStrokeColor = when {
+                                        isAnswered && option.code == target.code -> EmeraldSuccess
+                                        isCurrentOptSelected && isAnswered && !isCorrectAnswer -> CrimsonRep
+                                        isCurrentOptSelected -> RegalGold
+                                        else -> MutedSlate.copy(alpha = 0.25f)
+                                    }
+                                    
+                                    val bkgColor = when {
+                                        isAnswered && option.code == target.code -> EmeraldSuccess.copy(alpha = 0.12f)
+                                        isCurrentOptSelected && isAnswered && !isCorrectAnswer -> CrimsonRep.copy(alpha = 0.12f)
+                                        isCurrentOptSelected -> RegalGold.copy(alpha = 0.08f)
+                                        else -> CharcoalObsidian.copy(alpha = 0.5f)
+                                    }
+
+                                    val labelColor = when {
+                                        isAnswered && option.code == target.code -> EmeraldSuccess
+                                        isCurrentOptSelected && isAnswered && !isCorrectAnswer -> CrimsonRep
+                                        isCurrentOptSelected -> RegalGold
+                                        else -> GhostWhite
+                                    }
+
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = bkgColor),
+                                        border = BorderStroke(1.2.dp, borderStrokeColor),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = !isAnswered) {
+                                                optionSelected = index
+                                                isAnswered = true
+                                                if (option.code == target.code) {
+                                                    isCorrectAnswer = true
+                                                    quizStreak++
+                                                    if (quizStreak > bestStreak) {
+                                                        bestStreak = quizStreak
+                                                    }
+                                                    kcEarnedTotal += 10
+                                                    viewModel.awardKnowledgeCredits(10)
+                                                } else {
+                                                    isCorrectAnswer = false
+                                                    quizStreak = 0
+                                                    viewModel.triggerToast("Incorrect flag selected.")
+                                                }
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .background(borderStrokeColor.copy(alpha = 0.2f), CircleShape)
+                                                    .border(1.dp, borderStrokeColor, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = ('A' + index).toString(),
+                                                    color = labelColor,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Text(
+                                                text = option.name,
+                                                color = labelColor,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            AnimatedVisibility(visible = isAnswered) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isCorrectAnswer) EmeraldSuccess.copy(alpha = 0.08f) else CrimsonRep.copy(alpha = 0.08f)
+                                        ),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isCorrectAnswer) EmeraldSuccess.copy(alpha = 0.3f) else CrimsonRep.copy(alpha = 0.3f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = if (isCorrectAnswer) "CORRECT EXAM EXCELLENCE" else "CORRECT ANSWER",
+                                                color = if (isCorrectAnswer) EmeraldSuccess else CrimsonRep,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "${target.name} (Capital: ${target.capital})",
+                                                color = GhostWhite,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                            Text(
+                                                text = target.fact,
+                                                color = MutedSlate,
+                                                fontSize = 11.sp,
+                                                lineHeight = 15.sp,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    Button(
+                                        onClick = { generateQuestion() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = RegalGold),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Next Flag Challenge", color = CharcoalObsidian, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = CharcoalObsidian, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -1151,6 +1151,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Custom method to award Knowledge Credits
+    fun awardKnowledgeCredits(points: Int) {
+        viewModelScope.launch {
+            val me = userDao.getUserById("me") ?: return@launch
+            saveUserAndRecalculateRank(me.copy(
+                knowledgeCredits = me.knowledgeCredits + points
+            ))
+            _toastMessage.emit("+$points Knowledge Credits (KC) awarded!")
+        }
+    }
+
+    // Custom method to set home territory and flag
+    fun alignWithTerritory(name: String, flag: String) {
+        viewModelScope.launch {
+            val me = userDao.getUserById("me") ?: return@launch
+            saveUserAndRecalculateRank(me.copy(
+                territory = name,
+                flagEmoji = flag
+            ))
+            _toastMessage.emit("Alignment synchronized with Territory of $name!")
+        }
+    }
+
     // Database pre-population logic
     private fun prepopulateDb() {
         viewModelScope.launch {

@@ -1,0 +1,77 @@
+# This workflow will build and deploy a Node.js Express TypeScript backend to an Azure Web App
+# when a commit is pushed to the main branch.
+#
+# To use this workflow, configure your Azure Web App publish profile secret in GitHub Secrets:
+# 1. Name: AZURE_WEBAPP_PUBLISH_PROFILE
+# 2. Value: Paste the XML publish profile content downloaded from Azure App Service dashboard
+
+name: Build and Deploy to Azure Web App (Backend)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'backend/package.json'
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Build TypeScript to JavaScript
+        working-directory: ./backend
+        run: npm run build
+
+      # Azure App Service needs production node_modules to run dist/server.js
+      - name: Prune devDependencies
+        working-directory: ./backend
+        run: npm prune --production
+
+      # Create a deployment package with only the compiled output, package files, and production modules
+      - name: Package Artifacts
+        run: |
+          mkdir deploy-pkg
+          cp -r backend/dist deploy-pkg/
+          cp backend/package.json deploy-pkg/
+          cp backend/package-lock.json deploy-pkg/
+          cp -r backend/node_modules deploy-pkg/
+          # Ensure any server configurations are kept if necessary
+
+      - name: Upload Artifact for Deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-app
+          path: deploy-pkg/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    # Enter your Azure Web App Name here (or use env)
+    env:
+      AZURE_WEBAPP_NAME: 'one-earth' # Match your real Azure App Service Name
+
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-app
+
+      - name: 'Deploy to Azure Web App'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
